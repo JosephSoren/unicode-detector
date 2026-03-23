@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UniScan — Advanced Unicode Character Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f0f8ff;
+  --bg2: #e8f4fd;
+  --panel: #ffffff;
+  --panel2: #f5faff;
+  --border: #c8e4f5;
+  --border2: #a8d4ed;
+  --green: #0ea86a;
+  --green2: #0c9460;
+  --green-dim: rgba(14,168,106,0.1);
+  --green-glow: 0 0 16px rgba(14,168,106,0.2);
+  --amber: #e07b00;
+  --amber-dim: rgba(224,123,0,0.1);
+  --red: #e02040;
+  --red-dim: rgba(224,32,64,0.08);
+  --blue: #0891d8;
+  --blue-dim: rgba(8,145,216,0.1);
+  --sky: #38bdf8;
+  --sky-dim: rgba(56,189,248,0.12);
+  --sky-glow: 0 0 20px rgba(56,189,248,0.35);
+  --purple: #7c3aed;
+  --cyan: #0ea5e9;
+  --text: #0f2a3f;
+  --text2: #2d6b96;
+  --text3: #6b9ab8;
+  --mono: 'Share Tech Mono', monospace;
+  --sans: 'Rajdhani', sans-serif;
+  --display: 'Orbitron', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: default;
+}
+
+/* ── SUBTLE CLOUD PATTERN ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 10%, rgba(56,189,248,0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 80% 80%, rgba(14,168,106,0.06) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── ANIMATED BG GRID ── */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(8,145,216,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8,145,216,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridPan 60s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes gridPan { to { background-position: 40px 40px; } }
+
+/* ── CORNER ACCENTS ── */
+.corner {
+  position: fixed;
+  width: 40px; height: 40px;
+  pointer-events: none;
+  z-index: 10000;
+}
+.corner-tl { top: 12px; left: 12px; border-top: 2px solid var(--sky); border-left: 2px solid var(--sky); }
+.corner-tr { top: 12px; right: 12px; border-top: 2px solid var(--sky); border-right: 2px solid var(--sky); }
+.corner-bl { bottom: 12px; left: 12px; border-bottom: 2px solid var(--sky); border-left: 2px solid var(--sky); }
+.corner-br { bottom: 12px; right: 12px; border-bottom: 2px solid var(--sky); border-right: 2px solid var(--sky); }
+
+/* ── HEADER ── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  background: rgba(255,255,255,0.92);
+  border-bottom: 1px solid var(--border2);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 16px rgba(8,145,216,0.1);
+}
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 28px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--blue);
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 16px rgba(8,145,216,0.25);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  border: 2px solid var(--sky);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--blue);
+  background: var(--sky-dim);
+  box-shadow: var(--sky-glow);
+}
+.logo-sub {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text3);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 0.7rem;
+  color: var(--text3);
+  letter-spacing: 0.06em;
+}
+.status-item { display: flex; align-items: center; gap: 6px; }
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: var(--green-glow);
+  animation: blink 2s ease infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.header-nav { display: flex; gap: 4px; }
+.hnav-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.15s;
+}
+.hnav-btn:hover { border-color: var(--sky); color: var(--blue); background: var(--sky-dim); }
+.hnav-btn.active { border-color: var(--sky); color: var(--blue); background: var(--sky-dim); }
+
+/* ── LAYOUT ── */
+.wrap { max-width: 1400px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  padding: 20px 0;
+  align-items: start;
+}
+
+/* ── PANEL BASE ── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 12px rgba(8,145,216,0.07);
+}
+.panel-head {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #e8f4fd, #f0faff);
+}
+.panel-title {
+  font-family: var(--display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-title::before {
+  content: '▶';
+  font-size: 0.55rem;
+  opacity: 0.7;
+}
+.panel-badge {
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.06em;
+  font-family: var(--mono);
+}
+.badge-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(14,168,106,0.25); }
+.badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(224,123,0,0.25); }
+.badge-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(224,32,64,0.2); }
+.badge-blue { background: var(--sky-dim); color: var(--blue); border: 1px solid rgba(8,145,216,0.25); }
+.panel-body { padding: 18px; }
+
+/* ── INPUT ZONE ── */
+.input-zone { margin-bottom: 14px; position: relative; }
+.input-label {
+  font-size: 0.62rem;
+  color: var(--text2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.input-counter { color: var(--blue); font-weight: 700; }
+.scan-textarea {
+  width: 100%;
+  min-height: 180px;
+  background: #f8fcff;
+  border: 1.5px solid var(--border2);
+  border-radius: 6px;
+  padding: 16px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.75;
+  letter-spacing: 0.02em;
+}
+.scan-textarea:focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.scan-textarea::placeholder { color: var(--text3); }
+
+/* ── ACTION ROW ── */
+.action-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.btn {
+  padding: 9px 18px;
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all 0.15s;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-scan {
+  background: linear-gradient(135deg, var(--sky), var(--blue));
+  color: white;
+  box-shadow: 0 4px 16px rgba(8,145,216,0.3);
+  flex: 1;
+}
+.btn-scan:hover { background: linear-gradient(135deg, #29b0f0, #0777b8); box-shadow: 0 6px 24px rgba(8,145,216,0.4); }
+.btn-scan.scanning { animation: scanPulse 0.6s ease infinite; }
+@keyframes scanPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.btn-clean {
+  background: transparent;
+  border: 1.5px solid var(--amber);
+  color: var(--amber);
+}
+.btn-clean:hover { background: var(--amber-dim); }
+.btn-clear {
+  background: transparent;
+  border: 1.5px solid var(--border2);
+  color: var(--text3);
+}
+.btn-clear:hover { border-color: var(--text2); color: var(--text2); }
+.btn-copy {
+  background: transparent;
+  border: 1.5px solid var(--blue);
+  color: var(--blue);
+}
+.btn-copy:hover { background: var(--sky-dim); }
+.btn-export {
+  background: transparent;
+  border: 1.5px solid var(--purple);
+  color: var(--purple);
+}
+.btn-export:hover { background: rgba(124,58,237,0.08); }
+
+/* ── SCAN PROGRESS BAR ── */
+.scan-progress {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  display: none;
+  box-shadow: inset 0 1px 3px rgba(8,145,216,0.08);
+}
+.scan-progress.active { display: block; }
+.scan-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--sky), var(--blue));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px var(--sky);
+}
+
+/* ── RESULT SUMMARY ── */
+.result-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 14px 12px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 6px rgba(8,145,216,0.07);
+}
+.stat-card:hover { box-shadow: 0 3px 16px rgba(8,145,216,0.12); }
+.stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 0 0 6px 6px;
+}
+.stat-card.s-green::after { background: linear-gradient(90deg, var(--green), #34d393); }
+.stat-card.s-amber::after { background: linear-gradient(90deg, var(--amber), #f59e0b); }
+.stat-card.s-red::after { background: linear-gradient(90deg, var(--red), #f87171); }
+.stat-card.s-blue::after { background: linear-gradient(90deg, var(--blue), var(--sky)); }
+.stat-val {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+.stat-card.s-green .stat-val { color: var(--green); text-shadow: 0 0 10px rgba(14,168,106,0.25); }
+.stat-card.s-amber .stat-val { color: var(--amber); text-shadow: 0 0 10px rgba(224,123,0,0.25); }
+.stat-card.s-red .stat-val { color: var(--red); text-shadow: 0 0 10px rgba(224,32,64,0.2); }
+.stat-card.s-blue .stat-val { color: var(--blue); text-shadow: 0 0 10px rgba(8,145,216,0.25); }
+.stat-lbl { font-size: 0.58rem; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── RISK METER ── */
+.risk-meter-wrap {
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 8px rgba(8,145,216,0.06);
+}
+.risk-label { font-size: 0.62rem; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+.risk-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.risk-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1), background 0.4s;
+  background: var(--green);
+  box-shadow: 0 0 8px currentColor;
+}
+.risk-score { font-family: var(--display); font-size: 0.8rem; font-weight: 700; white-space: nowrap; min-width: 80px; text-align: right; }
+.risk-level { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+
+/* ── CHAR MAP ── */
+.charmap-wrap {
+  background: #f8fcff;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  margin-bottom: 16px;
+  font-size: 0;
+  min-height: 60px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-content: flex-start;
+}
+.charmap-wrap.empty-state {
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+}
+.char-cell {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+}
+.char-cell.visible { background: rgba(8,145,216,0.05); color: var(--text); border: 1px solid var(--border); }
+.char-cell.visible:hover { background: rgba(8,145,216,0.1); border-color: var(--sky); z-index: 10; }
+.char-cell.invisible { background: var(--sky-dim); border: 1px solid rgba(56,189,248,0.4); color: var(--blue); font-size: 0.55rem; }
+.char-cell.invisible:hover { background: rgba(56,189,248,0.22); border-color: var(--sky); box-shadow: var(--sky-glow); z-index: 10; }
+.char-cell.whitespace { background: rgba(14,168,106,0.08); border: 1px solid rgba(14,168,106,0.25); color: var(--green); }
+.char-cell.control { background: var(--amber-dim); border: 1px solid rgba(224,123,0,0.25); color: var(--amber); }
+.char-cell.suspicious { background: var(--red-dim); border: 1px solid rgba(224,32,64,0.3); color: var(--red); animation: suspFlash 1.5s ease infinite; }
+@keyframes suspFlash { 0%,100%{border-color:rgba(224,32,64,0.25)} 50%{border-color:var(--red)} }
+.char-cell .tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 0.62rem;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: white;
+  min-width: 120px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(8,145,216,0.2);
+}
+.char-cell:hover .tooltip { opacity: 1; }
+.empty-msg { font-size: 0.72rem; color: var(--text3); letter-spacing: 0.08em; }
+
+/* ── FOUND TABLE ── */
+.found-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  display: none;
+}
+.found-table-wrap.visible { display: block; }
+.found-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+.found-table thead tr { background: linear-gradient(135deg, #ddf0fb, #e8f7ff); }
+.found-table th {
+  padding: 9px 12px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border2);
+}
+.found-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
+.found-table tbody tr:last-child { border-bottom: none; }
+.found-table tbody tr:hover { background: rgba(56,189,248,0.06); }
+.found-table td { padding: 9px 12px; vertical-align: middle; }
+.ft-code { font-family: var(--mono); color: var(--blue); font-weight: 700; font-size: 0.7rem; }
+.ft-name { color: var(--text); font-weight: 600; }
+.ft-cat span {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.ft-risk { text-align: center; }
+.risk-pill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.rp-low { background: var(--green-dim); color: var(--green); }
+.rp-med { background: var(--amber-dim); color: var(--amber); }
+.rp-high { background: var(--red-dim); color: var(--red); }
+.ft-count {
+  font-family: var(--display);
+  color: var(--amber);
+  font-weight: 700;
+  text-align: right;
+}
+.ft-action button {
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  cursor: pointer;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text3);
+  transition: all 0.12s;
+  letter-spacing: 0.06em;
+}
+.ft-action button:hover { border-color: var(--sky); color: var(--blue); background: var(--sky-dim); }
+
+/* ── SIDEBAR PANELS ── */
+.sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+/* block analysis */
+.block-list { display: flex; flex-direction: column; gap: 6px; }
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+.block-row:hover { border-color: var(--sky); background: #eef7ff; }
+.block-name { font-size: 0.68rem; flex: 1; color: var(--text); }
+.block-bar-wrap { width: 80px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.block-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.block-count { font-family: var(--display); font-size: 0.65rem; color: var(--blue); min-width: 24px; text-align: right; font-weight: 700; }
+.cat-legend { display: flex; flex-direction: column; gap: 6px; }
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+.cat-row:hover { border-color: var(--sky); }
+.cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cat-name { font-size: 0.68rem; flex: 1; color: var(--text2); }
+.cat-val { font-family: var(--display); font-size: 0.65rem; font-weight: 700; }
+.cat-pct { font-size: 0.6rem; color: var(--text3); min-width: 32px; text-align: right; }
+
+/* security flags */
+.flags-list { display: flex; flex-direction: column; gap: 6px; }
+.flag-item {
+  padding: 10px 12px;
+  border-radius: 5px;
+  border-left: 3px solid;
+  background: var(--panel2);
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.flag-item.flag-low { border-left-color: var(--green); background: rgba(14,168,106,0.04); }
+.flag-item.flag-med { border-left-color: var(--amber); background: rgba(224,123,0,0.04); }
+.flag-item.flag-high { border-left-color: var(--red); background: rgba(224,32,64,0.04); }
+.flag-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.flag-icon { font-size: 0.85rem; }
+.flag-title { font-size: 0.72rem; font-weight: 700; color: var(--text); }
+.flag-body { font-size: 0.65rem; color: var(--text2); line-height: 1.55; }
+.no-flags { padding: 20px; text-align: center; font-size: 0.7rem; color: var(--text3); letter-spacing: 0.06em; }
+
+/* stats list */
+.stats-list { display: flex; flex-direction: column; gap: 4px; }
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  transition: all 0.15s;
+}
+.stats-row:hover { border-color: var(--sky); background: #eef7ff; }
+.stats-key { color: var(--text2); }
+.stats-val { color: var(--blue); font-family: var(--display); font-size: 0.65rem; font-weight: 700; }
+
+/* clean output */
+.clean-output-wrap {
+  display: none;
+  background: rgba(14,168,106,0.05);
+  border: 1.5px solid rgba(14,168,106,0.25);
+  border-radius: 6px;
+  padding: 14px;
+  margin-top: 12px;
+}
+.clean-output-wrap.visible { display: block; }
+.clean-label {
+  font-size: 0.6rem;
+  color: var(--green);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.clean-label::before { content: '✓'; }
+.clean-text {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.7;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* ── LEGEND ── */
+.legend-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 14px;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.62rem; color: var(--text3); }
+.legend-swatch {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+.ls-visible { background: rgba(8,145,216,0.07); border-color: var(--border2); }
+.ls-invisible { background: var(--sky-dim); border-color: rgba(56,189,248,0.4); }
+.ls-whitespace { background: rgba(14,168,106,0.1); border-color: rgba(14,168,106,0.3); }
+.ls-control { background: var(--amber-dim); border-color: rgba(224,123,0,0.3); }
+.ls-suspicious { background: var(--red-dim); border-color: rgba(224,32,64,0.3); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  background: var(--text);
+  border: 1px solid var(--sky);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  z-index: 9998;
+  transform: translateY(70px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  pointer-events: none;
+  box-shadow: 0 4px 24px rgba(8,145,216,0.25);
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--sky); }
+
+/* ── REAL-TIME TOGGLE ── */
+.rt-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.62rem;
+  color: var(--text3);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle-track {
+  width: 28px; height: 14px;
+  background: var(--border2);
+  border-radius: 7px;
+  position: relative;
+  transition: background 0.2s;
+}
+.toggle-track.on { background: rgba(56,189,248,0.3); border: 1px solid rgba(56,189,248,0.5); }
+.toggle-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: all 0.2s;
+}
+.toggle-track.on .toggle-thumb { left: 16px; background: var(--sky); box-shadow: var(--sky-glow); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border2);
+  background: linear-gradient(135deg, #e8f4fd, #f5faff);
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  color: var(--text3);
+  letter-spacing: 0.06em;
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.footer-left { display: flex; gap: 20px; }
+.footer-right { color: var(--blue); font-weight: 700; }
+
+/* ── SAMPLE LOADER ── */
+.sample-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.sample-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: all 0.15s;
+}
+.sample-btn:hover { border-color: var(--sky); color: var(--blue); background: var(--sky-dim); }
+
+/* ── TEST BOX ── */
+.test-box {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-top: 16px;
+}
+.test-head {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tlite {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+.tlite.ok { background: var(--green); box-shadow: var(--green-glow); }
+.test-in {
+  width: 100%;
+  padding: 9px 13px;
+  border: 1.5px solid var(--border2);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  outline: none;
+  color: var(--text);
+  background: #ffffff;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.test-in:focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(56,189,248,0.12); }
+.test-msg { margin-top: 8px; font-size: 0.7rem; color: var(--text3); }
+.test-msg.ok { color: var(--green); font-weight: 700; }
+
+/* ── MEDIA QUERIES ── */
+@media (max-width: 1100px) {
+  .main-grid { grid-template-columns: 1fr; }
+  .sidebar { display: grid; grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 700px) {
+  .result-summary { grid-template-columns: repeat(2,1fr); }
+  .sidebar { grid-template-columns: 1fr; }
+  .header-status { display: none; }
+  .header-nav { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <a class="logo" href="#">
+      <div class="logo-icon">U</div>
+      <div>
+        <div>UniScan</div>
+        <div class="logo-sub">Unicode Detector v2.0</div>
+      </div>
+    </a>
+    <div class="header-status">
+      <div class="status-item"><div class="status-dot"></div> SYSTEM ONLINE</div>
+      <div class="status-item">ENGINE: JS/REGEX</div>
+      <div class="status-item" id="hdr-time">--:--:--</div>
+    </div>
+    <div class="header-nav">
+      <a class="hnav-btn active" href="#scanner">Scanner</a>
+      <a class="hnav-btn" href="#reference">Reference</a>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="wrap" id="scanner">
+  <div class="main-grid">
+
+    <!-- LEFT: SCANNER -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- INPUT PANEL -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Input Analysis Target</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="rt-toggle" id="rt-toggle" onclick="toggleRealtime()">
+              <div class="toggle-track" id="rt-track"><div class="toggle-thumb"></div></div>
+              REALTIME
+            </div>
+            <span class="panel-badge badge-green">READY</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="sample-row">
+            <span style="font-size:0.6rem;color:var(--text3);letter-spacing:0.08em;align-self:center;">LOAD SAMPLE:</span>
+            <button class="sample-btn" onclick="loadSample('invisible')">Invisible Chars</button>
+            <button class="sample-btn" onclick="loadSample('mixed')">Mixed Unicode</button>
+            <button class="sample-btn" onclick="loadSample('rtl')">RTL/BiDi Attack</button>
+            <button class="sample-btn" onclick="loadSample('zws')">Zero-Width</button>
+            <button class="sample-btn" onclick="loadSample('ai')">AI Fingerprint</button>
+          </div>
+          <div class="input-zone">
+            <div class="input-label">
+              <span>// PASTE TEXT TO ANALYZE</span>
+              <span class="input-counter" id="char-count-lbl">0 chars</span>
+            </div>
+            <textarea class="scan-textarea" id="main-input" placeholder="Paste any text here — emails, usernames, AI-generated content, code, documents, URLs — to scan for hidden, suspicious, or non-standard Unicode characters…&#10;&#10;Supports real-time analysis, invisible character detection, BiDi attack detection, homoglyph analysis, and full character-by-character breakdown."></textarea>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-scan" id="scan-btn" onclick="runScan()">⬡ SCAN TEXT</button>
+            <button class="btn btn-clean" onclick="cleanText()">✦ STRIP &amp; CLEAN</button>
+            <button class="btn btn-copy" onclick="copyClean()">⊞ COPY CLEAN</button>
+            <button class="btn btn-export" onclick="exportReport()">↓ EXPORT JSON</button>
+            <button class="btn btn-clear" onclick="clearAll()">✕ CLEAR</button>
+          </div>
+          <div class="scan-progress" id="scan-progress"><div class="scan-bar" id="scan-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- STATS ROW -->
+      <div class="result-summary">
+        <div class="stat-card s-green">
+          <div class="stat-val" id="st-total">0</div>
+          <div class="stat-lbl">Total Chars</div>
+        </div>
+        <div class="stat-card s-amber">
+          <div class="stat-val" id="st-invisible">0</div>
+          <div class="stat-lbl">Invisible</div>
+        </div>
+        <div class="stat-card s-red">
+          <div class="stat-val" id="st-suspicious">0</div>
+          <div class="stat-lbl">Suspicious</div>
+        </div>
+        <div class="stat-card s-blue">
+          <div class="stat-val" id="st-types">0</div>
+          <div class="stat-lbl">Char Types</div>
+        </div>
+      </div>
+
+      <!-- RISK METER -->
+      <div class="risk-meter-wrap">
+        <div class="risk-label">RISK SCORE</div>
+        <div class="risk-track"><div class="risk-fill" id="risk-fill" style="width:0%;background:var(--green)"></div></div>
+        <div>
+          <div class="risk-score" id="risk-score" style="color:var(--green)">0 / 100</div>
+          <div class="risk-level" id="risk-level" style="color:var(--green);text-align:right;">CLEAN</div>
+        </div>
+      </div>
+
+      <!-- CHAR MAP -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Character Map — Visual Breakdown</div>
+          <span class="panel-badge badge-blue" id="charmap-badge">0 chars</span>
+        </div>
+        <div class="panel-body" style="padding:14px;">
+          <div class="legend-row">
+            <div class="legend-item"><div class="legend-swatch ls-visible"></div>Visible</div>
+            <div class="legend-item"><div class="legend-swatch ls-invisible"></div>Invisible</div>
+            <div class="legend-item"><div class="legend-swatch ls-whitespace"></div>Whitespace</div>
+            <div class="legend-item"><div class="legend-swatch ls-control"></div>Control</div>
+            <div class="legend-item"><div class="legend-swatch ls-suspicious"></div>Suspicious</div>
+          </div>
+          <div class="charmap-wrap empty-state" id="charmap">
+            <div class="empty-msg">// AWAITING INPUT — PASTE TEXT ABOVE</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOUND CHARACTERS TABLE -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Detected Characters — Full Report</div>
+          <span class="panel-badge badge-amber" id="found-badge">NONE</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div class="found-table-wrap" id="found-table-wrap">
+            <table class="found-table">
+              <thead>
+                <tr>
+                  <th>Code Point</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Risk</th>
+                  <th style="text-align:right;">Count</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="found-tbody"></tbody>
+            </table>
+          </div>
+          <div style="padding:20px;text-align:center;font-size:0.7rem;color:var(--text3);letter-spacing:0.06em;background:var(--panel2);" id="no-found-msg">
+            // NO SPECIAL CHARACTERS DETECTED — INPUT IS CLEAN
+          </div>
+          <div class="clean-output-wrap" id="clean-output-wrap">
+            <div class="clean-label">CLEANED OUTPUT (all invisible chars stripped)</div>
+            <div class="clean-text" id="clean-text"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: SIDEBAR -->
+    <div class="sidebar">
+
+      <!-- UNICODE BLOCK ANALYSIS -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Unicode Block Analysis</div>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div class="block-list" id="block-list">
+            <div style="font-size:0.65rem;color:var(--text3);text-align:center;padding:16px;letter-spacing:0.06em;">// RUN SCAN TO SEE BLOCKS</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CATEGORY BREAKDOWN -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Category Breakdown</div>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div class="cat-legend" id="cat-legend">
+            <div style="font-size:0.65rem;color:var(--text3);text-align:center;padding:16px;letter-spacing:0.06em;">// AWAITING SCAN</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECURITY FLAGS -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Security Flags</div>
+          <span class="panel-badge badge-green" id="flags-badge">NONE</span>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div class="flags-list" id="flags-list">
+            <div class="no-flags">// NO THREATS DETECTED</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETAILED STATS -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Analysis Statistics</div>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div class="stats-list" id="stats-list">
+            <div class="stats-row"><span class="stats-key">Total characters</span><span class="stats-val" id="ds-total">—</span></div>
+            <div class="stats-row"><span class="stats-key">Visible characters</span><span class="stats-val" id="ds-visible">—</span></div>
+            <div class="stats-row"><span class="stats-key">Invisible chars</span><span class="stats-val" id="ds-invis">—</span></div>
+            <div class="stats-row"><span class="stats-key">Whitespace chars</span><span class="stats-val" id="ds-ws">—</span></div>
+            <div class="stats-row"><span class="stats-key">Control chars</span><span class="stats-val" id="ds-ctrl">—</span></div>
+            <div class="stats-row"><span class="stats-key">Suspicious chars</span><span class="stats-val" id="ds-susp">—</span></div>
+            <div class="stats-row"><span class="stats-key">Unique code points</span><span class="stats-val" id="ds-unique">—</span></div>
+            <div class="stats-row"><span class="stats-key">Unicode blocks</span><span class="stats-val" id="ds-blocks">—</span></div>
+            <div class="stats-row"><span class="stats-key">Avg code point</span><span class="stats-val" id="ds-avg">—</span></div>
+            <div class="stats-row"><span class="stats-key">Max code point</span><span class="stats-val" id="ds-max">—</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- REFERENCE TABLE -->
+<div class="wrap" id="reference" style="padding-bottom:40px;">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Unicode Invisible Character Reference Database</div>
+      <span class="panel-badge badge-green">50+ ENTRIES</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="found-table" style="font-size:0.7rem;">
+        <thead>
+          <tr>
+            <th>Code Point</th>
+            <th>Character Name</th>
+            <th>Block</th>
+            <th>Category</th>
+            <th>Risk Level</th>
+            <th>Common Use / Abuse</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="ref-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer class="wrap">
+  <div class="footer-left">
+    <span>UniScan — Advanced Unicode Detector</span>
+    <span>|</span>
+    <span>Detects 50+ invisible char types</span>
+    <span>|</span>
+    <span>100% client-side · No data leaves your device</span>
+  </div>
+  <div class="footer-right" id="footer-scan-count">SCANS THIS SESSION: 0</div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── UNICODE DATABASE ─────────────────────────────────────────────────────
+const UNICODE_DB = [
+  // Invisible / blank chars
+  { code:'U+2800', cp:0x2800, char:'\u2800', name:'Braille Pattern Blank',         block:'Braille Patterns',        cat:'invisible',   risk:'med', use:'Blank messages, game usernames' },
+  { code:'U+3164', cp:0x3164, char:'\u3164', name:'Hangul Filler',                 block:'Hangul Compatibility',    cat:'invisible',   risk:'low', use:'Game blank usernames (PUBG, FF)' },
+  { code:'U+200B', cp:0x200b, char:'\u200b', name:'Zero Width Space',              block:'General Punctuation',     cat:'invisible',   risk:'med', use:'Discord, hidden breaks, spam bypass' },
+  { code:'U+FEFF', cp:0xfeff, char:'\ufeff', name:'Zero Width No-Break Space (BOM)',block:'Arabic Presentation',   cat:'invisible',   risk:'med', use:'BOM marker, fingerprinting' },
+  { code:'U+200C', cp:0x200c, char:'\u200c', name:'Zero Width Non-Joiner',         block:'General Punctuation',     cat:'invisible',   risk:'med', use:'Script control, filter bypass' },
+  { code:'U+200D', cp:0x200d, char:'\u200d', name:'Zero Width Joiner',             block:'General Punctuation',     cat:'invisible',   risk:'med', use:'Emoji sequences, hidden joiners' },
+  { code:'U+034F', cp:0x034f, char:'\u034f', name:'Combining Grapheme Joiner',     block:'Combining Diacritics',    cat:'invisible',   risk:'med', use:'Text fingerprinting, steganography' },
+  { code:'U+2060', cp:0x2060, char:'\u2060', name:'Word Joiner',                   block:'General Punctuation',     cat:'invisible',   risk:'low', use:'Prevent line break, hidden spacer' },
+  { code:'U+2061', cp:0x2061, char:'\u2061', name:'Function Application',          block:'General Punctuation',     cat:'invisible',   risk:'low', use:'Math markup invisible operator' },
+  { code:'U+2062', cp:0x2062, char:'\u2062', name:'Invisible Times',               block:'General Punctuation',     cat:'invisible',   risk:'low', use:'Math markup invisible operator' },
+  { code:'U+2063', cp:0x2063, char:'\u2063', name:'Invisible Separator',           block:'General Punctuation',     cat:'invisible',   risk:'low', use:'Math markup, steganography' },
+  { code:'U+2064', cp:0x2064, char:'\u2064', name:'Invisible Plus',                block:'General Punctuation',     cat:'invisible',   risk:'low', use:'Math markup invisible operator' },
+  { code:'U+180E', cp:0x180e, char:'\u180e', name:'Mongolian Vowel Separator',     block:'Mongolian',               cat:'invisible',   risk:'low', use:'Deprecated, used in game names' },
+  { code:'U+00AD', cp:0x00ad, char:'\u00ad', name:'Soft Hyphen',                   block:'Latin-1 Supplement',      cat:'invisible',   risk:'low', use:'Optional hyphen, often invisible' },
+  { code:'U+FFFC', cp:0xfffc, char:'\ufffc', name:'Object Replacement Character',  block:'Specials',                cat:'invisible',   risk:'med', use:'Placeholder in rich text systems' },
+  // BiDi / direction control
+  { code:'U+200E', cp:0x200e, char:'\u200e', name:'Left-to-Right Mark',            block:'General Punctuation',     cat:'bidi',        risk:'med', use:'RTL/LTR switch, UI spoofing' },
+  { code:'U+200F', cp:0x200f, char:'\u200f', name:'Right-to-Left Mark',            block:'General Punctuation',     cat:'bidi',        risk:'med', use:'RTL/LTR switch, UI spoofing' },
+  { code:'U+202A', cp:0x202a, char:'\u202a', name:'Left-to-Right Embedding',       block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi attack, text direction spoof' },
+  { code:'U+202B', cp:0x202b, char:'\u202b', name:'Right-to-Left Embedding',       block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi attack, filename spoofing' },
+  { code:'U+202C', cp:0x202c, char:'\u202c', name:'Pop Directional Formatting',    block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi attack — closes embedding' },
+  { code:'U+202D', cp:0x202d, char:'\u202d', name:'Left-to-Right Override',        block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi override, filename spoofing' },
+  { code:'U+202E', cp:0x202e, char:'\u202e', name:'Right-to-Left Override',        block:'General Punctuation',     cat:'bidi',        risk:'high', use:'Trojansource attack, RLO exploit' },
+  { code:'U+2066', cp:0x2066, char:'\u2066', name:'Left-to-Right Isolate',         block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi isolate for spoofing' },
+  { code:'U+2067', cp:0x2067, char:'\u2067', name:'Right-to-Left Isolate',         block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi isolate for spoofing' },
+  { code:'U+2068', cp:0x2068, char:'\u2068', name:'First Strong Isolate',          block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi attack variant' },
+  { code:'U+2069', cp:0x2069, char:'\u2069', name:'Pop Directional Isolate',       block:'General Punctuation',     cat:'bidi',        risk:'high', use:'BiDi attack — closes isolate' },
+  { code:'U+061C', cp:0x061c, char:'\u061c', name:'Arabic Letter Mark',            block:'Arabic',                  cat:'bidi',        risk:'med', use:'Arabic script control, spoofing' },
+  { code:'U+206A', cp:0x206a, char:'\u206a', name:'Inhibit Symmetric Swapping',    block:'General Punctuation',     cat:'bidi',        risk:'med', use:'Deprecated symmetric inhibit' },
+  // Whitespace variants
+  { code:'U+00A0', cp:0x00a0, char:'\u00a0', name:'No-Break Space',                block:'Latin-1 Supplement',      cat:'whitespace',  risk:'low', use:'Non-collapsing space in HTML/forms' },
+  { code:'U+2000', cp:0x2000, char:'\u2000', name:'En Quad',                       block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2001', cp:0x2001, char:'\u2001', name:'Em Quad',                       block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2002', cp:0x2002, char:'\u2002', name:'En Space',                      block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2003', cp:0x2003, char:'\u2003', name:'Em Space',                      block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2004', cp:0x2004, char:'\u2004', name:'Three-Per-Em Space',            block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2005', cp:0x2005, char:'\u2005', name:'Four-Per-Em Space',             block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2006', cp:0x2006, char:'\u2006', name:'Six-Per-Em Space',              block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Typography spacing' },
+  { code:'U+2007', cp:0x2007, char:'\u2007', name:'Figure Space',                  block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Digit-width spacing' },
+  { code:'U+2008', cp:0x2008, char:'\u2008', name:'Punctuation Space',             block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Punctuation-width spacing' },
+  { code:'U+2009', cp:0x2009, char:'\u2009', name:'Thin Space',                    block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Thin spacing, typography' },
+  { code:'U+200A', cp:0x200a, char:'\u200a', name:'Hair Space',                    block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Finest spacing, typography' },
+  { code:'U+202F', cp:0x202f, char:'\u202f', name:'Narrow No-Break Space',         block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'French punctuation, narrow NBSP' },
+  { code:'U+205F', cp:0x205f, char:'\u205f', name:'Medium Mathematical Space',     block:'General Punctuation',     cat:'whitespace',  risk:'low', use:'Math typesetting' },
+  { code:'U+3000', cp:0x3000, char:'\u3000', name:'Ideographic Space',             block:'CJK Symbols',             cat:'whitespace',  risk:'low', use:'Full-width CJK space' },
+  // Suspicious / security
+  { code:'U+FFFD', cp:0xfffd, char:'\ufffd', name:'Replacement Character',         block:'Specials',                cat:'suspicious',  risk:'med', use:'Encoding error indicator' },
+  { code:'U+FFFE', cp:0xfffe, char:'\ufffe', name:'Non-character (BOM reversed)',  block:'Specials',                cat:'suspicious',  risk:'high', use:'Reversed BOM, encoding attack' },
+  { code:'U+FFFF', cp:0xffff, char:'\uffff', name:'Non-character (FFFF)',          block:'Specials',                cat:'suspicious',  risk:'high', use:'Non-character, invalid in streams' },
+  { code:'U+FDD0', cp:0xfdd0, char:'\ufdd0', name:'Non-character (FDD0)',          block:'Arabic Presentation B',   cat:'suspicious',  risk:'high', use:'Permanently reserved non-char' },
+  { code:'U+E000', cp:0xe000, char:'\ue000', name:'Private Use Area (E000)',       block:'Private Use Area',        cat:'suspicious',  risk:'med', use:'Custom/private char, AI fingerprint' },
+  { code:'U+DB80', cp:0xdb80, char:'\udb80', name:'High Surrogate (DB80)',         block:'Surrogates',              cat:'suspicious',  risk:'high', use:'Surrogate pair fragment, malformed' },
+];
+
+const DETECT_SET = new Set(UNICODE_DB.map(d => d.cp));
+
+// ── STATE ────────────────────────────────────────────────────────────────
+let realtimeMode = false;
+let scanCount = 0;
+let lastResult = null;
+let rtTimer = null;
+let genContent = '';
+
+// ── CLOCK ────────────────────────────────────────────────────────────────
+function updateClock() {
+  const n = new Date();
+  document.getElementById('hdr-time').textContent =
+    n.toTimeString().split(' ')[0];
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── REALTIME ─────────────────────────────────────────────────────────────
+function toggleRealtime() {
+  realtimeMode = !realtimeMode;
+  const track = document.getElementById('rt-track');
+  track.classList.toggle('on', realtimeMode);
+}
+
+document.getElementById('main-input').addEventListener('input', function() {
+  const v = this.value;
+  document.getElementById('char-count-lbl').textContent = v.length + ' chars';
+  if (realtimeMode) {
+    clearTimeout(rtTimer);
+    rtTimer = setTimeout(() => runScan(true), 300);
+  }
+});
+
+// ── SAMPLES ──────────────────────────────────────────────────────────────
+const SAMPLES = {
+  invisible: 'Hello\u2800World\u200B!\u3164Invisible\u034Fchars\u2060here\uFEFFtest',
+  mixed: 'Caf\u00e9 \u2022 na\u00efve \u2014 r\u00e9sum\u00e9 \u00b7 \u03b1\u03b2\u03b3 \u00a9 \u2665 \u2800 \u200b \u3164',
+  rtl: 'Normal text \u202E\u202D reversed \u202C back \u200F\u200E \u2066\u2067',
+  zws: 'zero\u200bwidth\u200bspace\u200cjoiner\u200dfiller\u2060word',
+  ai: 'This is AI-generated content\u034f\u2062\u034f with hidden\u2063 fingerprint\u034f\u2064 characters\u034f embedded throughout the text.',
+};
+
+function loadSample(key) {
+  document.getElementById('main-input').value = SAMPLES[key];
+  document.getElementById('char-count-lbl').textContent = SAMPLES[key].length + ' chars';
+  runScan();
+}
+
+// ── MAIN SCAN ────────────────────────────────────────────────────────────
+async function runScan(silent = false) {
+  const text = document.getElementById('main-input').value;
+  if (!text && !silent) { showToast('// NO INPUT TO SCAN'); return; }
+
+  if (!silent) {
+    const btn = document.getElementById('scan-btn');
+    btn.classList.add('scanning');
+    btn.textContent = '⬡ SCANNING...';
+    await animateProgress();
+    btn.classList.remove('scanning');
+    btn.textContent = '⬡ SCAN TEXT';
+  }
+
+  const result = analyzeText(text);
+  lastResult = result;
+  scanCount++;
+  document.getElementById('footer-scan-count').textContent = `SCANS THIS SESSION: ${scanCount}`;
+
+  renderResults(result, text);
+  if (!silent) showToast(`// SCAN COMPLETE — ${result.total} chars analyzed`);
+}
+
+async function animateProgress() {
+  const prog = document.getElementById('scan-progress');
+  const bar = document.getElementById('scan-bar');
+  prog.classList.add('active');
+  return new Promise(res => {
+    let w = 0;
+    const iv = setInterval(() => {
+      w = Math.min(w + Math.random() * 25, 100);
+      bar.style.width = w + '%';
+      if (w >= 100) { clearInterval(iv); setTimeout(() => { prog.classList.remove('active'); bar.style.width = '0%'; res(); }, 300); }
+    }, 60);
+  });
+}
+
+// ── ANALYSIS ENGINE ──────────────────────────────────────────────────────
+function analyzeText(text) {
+  const chars = [...text]; // handle surrogate pairs
+  const codePoints = chars.map(c => c.codePointAt(0));
+  const found = new Map(); // cp -> { info, count }
+  const blocks = new Map();
+  const cats = { visible: 0, invisible: 0, whitespace: 0, control: 0, suspicious: 0 };
+  let invisCount = 0, suspCount = 0;
+
+  for (const cp of codePoints) {
+    // classify
+    const dbEntry = UNICODE_DB.find(d => d.cp === cp);
+    let cat = classifyCP(cp);
+    if (dbEntry) cat = dbEntry.cat;
+
+    cats[cat] = (cats[cat] || 0) + 1;
+    if (cat === 'invisible' || cat === 'bidi') invisCount++;
+    if (cat === 'suspicious' || (dbEntry && dbEntry.risk === 'high')) suspCount++;
+
+    // block
+    const block = getBlock(cp);
+    blocks.set(block, (blocks.get(block) || 0) + 1);
+
+    // found map
+    if (dbEntry) {
+      if (!found.has(cp)) found.set(cp, { info: dbEntry, count: 0 });
+      found.get(cp).count++;
+    }
+  }
+
+  // security flags
+  const flags = detectSecurityFlags(text, found, cats);
+  const riskScore = calcRisk(found, flags, cats, invisCount, suspCount, chars.length);
+
+  return {
+    total: chars.length,
+    codePoints,
+    chars,
+    found: [...found.values()],
+    blocks: [...blocks.entries()].sort((a,b) => b[1]-a[1]),
+    cats,
+    flags,
+    riskScore,
+    invisCount,
+    suspCount,
+    unique: new Set(codePoints).size,
+    avgCP: codePoints.length ? Math.round(codePoints.reduce((a,b)=>a+b,0)/codePoints.length) : 0,
+    maxCP: codePoints.length ? Math.max(...codePoints) : 0,
+  };
+}
+
+function classifyCP(cp) {
+  if (cp < 0x20 || (cp >= 0x7f && cp < 0xa0)) return 'control';
+  if (cp === 0x20 || cp === 0x09 || cp === 0x0a || cp === 0x0d) return 'whitespace';
+  // invisible ranges
+  if ((cp >= 0x2000 && cp <= 0x200f) || (cp >= 0x2028 && cp <= 0x202f) ||
+      (cp >= 0x2060 && cp <= 0x206f) || cp === 0xfeff || cp === 0x00ad ||
+      cp === 0x034f || cp === 0x2800 || cp === 0x3164 || cp === 0x180e) return 'invisible';
+  // bidi
+  if ((cp >= 0x200e && cp <= 0x200f) || (cp >= 0x202a && cp <= 0x202e) ||
+      (cp >= 0x2066 && cp <= 0x2069) || cp === 0x061c) return 'bidi';
+  // suspicious
+  if (cp >= 0xfdd0 && cp <= 0xfdef) return 'suspicious';
+  if (cp === 0xfffe || cp === 0xffff || cp === 0xfffd) return 'suspicious';
+  if (cp >= 0xe000 && cp <= 0xf8ff) return 'suspicious'; // PUA
+  if (cp >= 0xd800 && cp <= 0xdfff) return 'suspicious'; // surrogates
+  return 'visible';
+}
+
+function getBlock(cp) {
+  if (cp < 0x80) return 'Basic Latin';
+  if (cp < 0x100) return 'Latin-1 Supplement';
+  if (cp < 0x250) return 'Latin Extended';
+  if (cp < 0x370) return 'Combining Marks';
+  if (cp < 0x400) return 'Greek & Coptic';
+  if (cp < 0x530) return 'Cyrillic';
+  if (cp < 0x600) return 'Armenian/Hebrew';
+  if (cp < 0x700) return 'Arabic';
+  if (cp < 0x2000) return 'Other Scripts';
+  if (cp < 0x2100) return 'General Punctuation';
+  if (cp < 0x2600) return 'Letterlike / Numbers';
+  if (cp < 0x2800) return 'Arrows & Math Ops';
+  if (cp < 0x2900) return 'Braille Patterns';
+  if (cp < 0x3000) return 'Enclosed / Box Drawing';
+  if (cp < 0x4000) return 'CJK Symbols';
+  if (cp < 0xA000) return 'CJK Unified';
+  if (cp < 0xD800) return 'Various Scripts';
+  if (cp < 0xE000) return 'Surrogates ⚠';
+  if (cp < 0xF900) return 'Private Use Area ⚠';
+  if (cp < 0x10000) return 'Specials / BMP End';
+  return 'Supplementary Planes';
+}
+
+function detectSecurityFlags(text, found, cats) {
+  const flags = [];
+  // BiDi attack
+  const bidiChars = [...found.values()].filter(f => f.info.cat === 'bidi');
+  if (bidiChars.some(b => [0x202e,0x202b,0x2067].includes(b.info.cp))) {
+    flags.push({ level:'high', icon:'☠', title:'BiDi Override Attack (Trojansource)', body:'Right-to-Left Override or embedding characters detected. These can make malicious code appear benign in code editors. CVE-2021-42574.' });
+  } else if (bidiChars.length) {
+    flags.push({ level:'med', icon:'⚠', title:'Bidirectional Control Characters', body:'Text contains Unicode BiDi control characters that can alter visual display direction, potentially used for UI spoofing.' });
+  }
+  // AI fingerprint
+  const fpChars = [0x034f, 0x2062, 0x2063, 0x2064, 0x2061];
+  const hasFP = fpChars.some(cp => found.has(cp) || text.includes(String.fromCodePoint(cp)));
+  if (hasFP && found.size > 1) {
+    flags.push({ level:'med', icon:'🤖', title:'Possible AI Content Fingerprinting', body:'Combining Grapheme Joiners and Invisible Math Operators are used by some LLMs to fingerprint generated content for watermarking.' });
+  }
+  // PUA / surrogates
+  const pua = [...found.values()].filter(f => f.info.cp >= 0xe000 && f.info.cp <= 0xf8ff);
+  if (pua.length) {
+    flags.push({ level:'med', icon:'⬡', title:'Private Use Area Characters', body:'Characters in Unicode\'s Private Use Area were found. These have no standard meaning and may indicate custom encoding or data exfiltration payloads.' });
+  }
+  // Non-characters
+  const nonChar = [...found.values()].filter(f => f.info.cp >= 0xfdd0);
+  if (nonChar.length) {
+    flags.push({ level:'high', icon:'✕', title:'Unicode Non-Characters Detected', body:'Permanently reserved non-characters (FDD0–FDEF, FFFE, FFFF) found. These should never appear in normal text and indicate malformed or malicious input.' });
+  }
+  // Prompt injection
+  if (cats.invisible > 5 && cats.invisible / (cats.visible || 1) > 0.3) {
+    flags.push({ level:'high', icon:'💉', title:'Potential Hidden Prompt Injection', body:'High density of invisible characters relative to visible text. This pattern is used to embed hidden AI instructions in documents processed by LLM pipelines.' });
+  }
+  // Steganography
+  if (cats.invisible > 2 && cats.visible > 20) {
+    flags.push({ level:'low', icon:'🔍', title:'Possible Text Steganography', body:'Invisible characters embedded within visible text may encode hidden information, watermarks, or tracking identifiers.' });
+  }
+  if (!flags.length && cats.invisible === 0 && cats.suspicious === 0) {
+    flags.push({ level:'low', icon:'✓', title:'No Threats Detected', body:'Text appears clean. No suspicious BiDi characters, injection patterns, or non-standard invisible characters found.' });
+  }
+  return flags;
+}
+
+function calcRisk(found, flags, cats, invis, susp, total) {
+  let score = 0;
+  if (flags.some(f=>f.title.includes('BiDi Override'))) score += 40;
+  else if (flags.some(f=>f.title.includes('Bidirectional'))) score += 20;
+  if (flags.some(f=>f.title.includes('Non-Characters'))) score += 30;
+  if (flags.some(f=>f.title.includes('Prompt Injection'))) score += 30;
+  if (flags.some(f=>f.title.includes('Private Use'))) score += 15;
+  if (flags.some(f=>f.title.includes('Fingerprint'))) score += 10;
+  if (flags.some(f=>f.title.includes('Steganography'))) score += 8;
+  score += Math.min(invis * 2, 20);
+  score += Math.min(susp * 5, 20);
+  return Math.min(score, 100);
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────
+function renderResults(r, text) {
+  // Stats
+  document.getElementById('st-total').textContent = r.total;
+  document.getElementById('st-invisible').textContent = r.invisCount;
+  document.getElementById('st-suspicious').textContent = r.suspCount;
+  document.getElementById('st-types').textContent = r.unique;
+
+  // Risk
+  const rf = document.getElementById('risk-fill');
+  const rs = document.getElementById('risk-score');
+  const rl = document.getElementById('risk-level');
+  const riskPct = r.riskScore;
+  rf.style.width = riskPct + '%';
+  rs.textContent = riskPct + ' / 100';
+  let rColor, rLabel;
+  if (riskPct < 20) { rColor = 'var(--green)'; rLabel = 'CLEAN'; }
+  else if (riskPct < 50) { rColor = 'var(--amber)'; rLabel = 'MODERATE'; }
+  else if (riskPct < 75) { rColor = 'var(--red)'; rLabel = 'HIGH RISK'; }
+  else { rColor = '#ff0044'; rLabel = 'CRITICAL'; }
+  rf.style.background = rColor;
+  rs.style.color = rColor;
+  rl.style.color = rColor;
+  rl.textContent = rLabel;
+
+  // Char map
+  renderCharMap(r, text);
+
+  // Found table
+  renderFoundTable(r);
+
+  // Block analysis
+  renderBlocks(r);
+
+  // Categories
+  renderCategories(r);
+
+  // Flags
+  renderFlags(r);
+
+  // Detailed stats
+  document.getElementById('ds-total').textContent = r.total;
+  document.getElementById('ds-visible').textContent = r.cats.visible || 0;
+  document.getElementById('ds-invis').textContent = r.invisCount;
+  document.getElementById('ds-ws').textContent = (r.cats.whitespace || 0);
+  document.getElementById('ds-ctrl').textContent = (r.cats.control || 0);
+  document.getElementById('ds-susp').textContent = r.suspCount;
+  document.getElementById('ds-unique').textContent = r.unique;
+  document.getElementById('ds-blocks').textContent = r.blocks.length;
+  document.getElementById('ds-avg').textContent = 'U+' + r.avgCP.toString(16).toUpperCase().padStart(4,'0');
+  document.getElementById('ds-max').textContent = 'U+' + r.maxCP.toString(16).toUpperCase().padStart(4,'0');
+}
+
+function renderCharMap(r, text) {
+  const map = document.getElementById('charmap');
+  map.innerHTML = '';
+  map.classList.remove('empty-state');
+  document.getElementById('charmap-badge').textContent = r.total + ' chars';
+
+  if (!r.total) {
+    map.classList.add('empty-state');
+    map.innerHTML = '<div class="empty-msg">// AWAITING INPUT — PASTE TEXT ABOVE</div>';
+    return;
+  }
+
+  const MAX_DISPLAY = 500;
+  const chars = r.chars.slice(0, MAX_DISPLAY);
+  chars.forEach((ch, i) => {
+    const cp = ch.codePointAt(0);
+    const cell = document.createElement('div');
+    const cat = classifyCP(cp);
+    const dbE = UNICODE_DB.find(d => d.cp === cp);
+    cell.className = 'char-cell ' + (dbE ? dbE.cat : cat);
+
+    let label = ch;
+    if (cat === 'control' || cat === 'whitespace') label = '·';
+    if (cat === 'invisible' || dbE?.cat === 'invisible') label = '∅';
+    if (dbE?.cat === 'bidi') label = '⇌';
+    if (cat === 'suspicious') label = '✕';
+    cell.textContent = label;
+
+    const cpHex = 'U+' + cp.toString(16).toUpperCase().padStart(4,'0');
+    const name = dbE ? dbE.name : (cat === 'control' ? 'Control Character' : 'Visible Character');
+    cell.innerHTML += `<div class="tooltip">${cpHex}<br>${name}</div>`;
+    map.appendChild(cell);
+  });
+
+  if (r.chars.length > MAX_DISPLAY) {
+    const more = document.createElement('div');
+    more.style.cssText = 'font-size:0.62rem;color:var(--text3);padding:6px 10px;align-self:center;letter-spacing:0.06em;';
+    more.textContent = `+${r.chars.length - MAX_DISPLAY} more…`;
+    map.appendChild(more);
+  }
+}
+
+function renderFoundTable(r) {
+  const tbody = document.getElementById('found-tbody');
+  const wrap = document.getElementById('found-table-wrap');
+  const noMsg = document.getElementById('no-found-msg');
+  tbody.innerHTML = '';
+
+  if (!r.found.length) {
+    wrap.classList.remove('visible');
+    noMsg.style.display = 'block';
+    document.getElementById('found-badge').textContent = 'NONE';
+    document.getElementById('found-badge').className = 'panel-badge badge-green';
+    return;
+  }
+
+  wrap.classList.add('visible');
+  noMsg.style.display = 'none';
+  document.getElementById('found-badge').textContent = r.found.length + ' TYPES';
+  document.getElementById('found-badge').className = 'panel-badge badge-amber';
+
+  r.found.sort((a,b) => {
+    const riskO = {high:0,med:1,low:2};
+    return riskO[a.info.risk] - riskO[b.info.risk] || b.count - a.count;
+  }).forEach(item => {
+    const tr = document.createElement('tr');
+    const catColors = { invisible:'color:var(--blue)', bidi:'color:var(--red)', whitespace:'color:var(--green)', suspicious:'color:var(--red)', control:'color:var(--amber)' };
+    const catBg = { invisible:'background:var(--sky-dim)', bidi:'background:var(--red-dim)', whitespace:'background:var(--green-dim)', suspicious:'background:var(--red-dim)', control:'background:var(--amber-dim)' };
+    const c = item.info.cat;
+    const riskClass = {high:'rp-high',med:'rp-med',low:'rp-low'}[item.info.risk] || 'rp-low';
+
+    tr.innerHTML = `
+      <td class="ft-code">${item.info.code}</td>
+      <td class="ft-name">${item.info.name}</td>
+      <td class="ft-cat"><span style="${catColors[c]||''};${catBg[c]||''};padding:2px 6px;border-radius:3px;font-size:0.6rem;font-weight:700;">${c.toUpperCase()}</span></td>
+      <td class="ft-risk"><span class="risk-pill ${riskClass}">${item.info.risk.toUpperCase()}</span></td>
+      <td class="ft-count">${item.count}</td>
+      <td class="ft-action"><button onclick="doCopy('${escapeChar(item.info.char)}','${item.info.name}')">COPY</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderBlocks(r) {
+  const el = document.getElementById('block-list');
+  el.innerHTML = '';
+  const max = r.blocks[0]?.[1] || 1;
+  const colors = ['var(--blue)','var(--sky)','var(--green)','var(--amber)','var(--purple)'];
+  r.blocks.slice(0,10).forEach(([name,cnt], i) => {
+    const pct = Math.round(cnt/max*100);
+    el.innerHTML += `
+      <div class="block-row">
+        <div class="block-name">${name}</div>
+        <div class="block-bar-wrap"><div class="block-bar" style="width:${pct}%;background:${colors[i%colors.length]}"></div></div>
+        <div class="block-count">${cnt}</div>
+      </div>`;
+  });
+}
+
+function renderCategories(r) {
+  const el = document.getElementById('cat-legend');
+  el.innerHTML = '';
+  const cats = [
+    { key:'visible', label:'Visible', color:'var(--text2)' },
+    { key:'whitespace', label:'Whitespace', color:'var(--green)' },
+    { key:'invisible', label:'Invisible', color:'var(--blue)' },
+    { key:'bidi', label:'BiDi Control', color:'var(--red)' },
+    { key:'control', label:'Control', color:'var(--amber)' },
+    { key:'suspicious', label:'Suspicious', color:'var(--purple)' },
+  ];
+  const total = Object.values(r.cats).reduce((a,b)=>a+b,0) || 1;
+  cats.forEach(c => {
+    const cnt = r.cats[c.key] || 0;
+    const pct = Math.round(cnt/total*100);
+    el.innerHTML += `
+      <div class="cat-row">
+        <div class="cat-dot" style="background:${c.color}"></div>
+        <div class="cat-name">${c.label}</div>
+        <div class="cat-val" style="color:${c.color}">${cnt}</div>
+        <div class="cat-pct">${pct}%</div>
+      </div>`;
+  });
+}
+
+function renderFlags(r) {
+  const el = document.getElementById('flags-list');
+  const badge = document.getElementById('flags-badge');
+  el.innerHTML = '';
+  const high = r.flags.filter(f=>f.level==='high');
+  const med = r.flags.filter(f=>f.level==='med');
+
+  if (high.length) { badge.textContent = high.length + ' CRITICAL'; badge.className = 'panel-badge badge-red'; }
+  else if (med.length) { badge.textContent = med.length + ' WARNING'; badge.className = 'panel-badge badge-amber'; }
+  else { badge.textContent = 'CLEAN'; badge.className = 'panel-badge badge-green'; }
+
+  r.flags.forEach(f => {
+    el.innerHTML += `
+      <div class="flag-item flag-${f.level}">
+        <div class="flag-head"><div class="flag-icon">${f.icon}</div><div class="flag-title">${f.title}</div></div>
+        <div class="flag-body">${f.body}</div>
+      </div>`;
+  });
+}
+
+// ── ACTIONS ──────────────────────────────────────────────────────────────
+function cleanText() {
+  const text = document.getElementById('main-input').value;
+  if (!text) { showToast('// NO TEXT TO CLEAN'); return; }
+  let cleaned = text;
+  UNICODE_DB.filter(d => d.cat !== 'visible' && d.cat !== 'whitespace').forEach(d => {
+    cleaned = cleaned.split(d.char).join('');
+  });
+  // also strip all zero-width, invisible ranges
+  cleaned = cleaned.replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\u034f\u2800\u3164\u180e]/g, '');
+  document.getElementById('clean-text').textContent = cleaned || '[All content was invisible — result is empty]';
+  document.getElementById('clean-output-wrap').classList.add('visible');
+  genContent = cleaned;
+  navigator.clipboard.writeText(cleaned);
+  showToast('// TEXT CLEANED — COPIED TO CLIPBOARD');
+  runScan(true);
+}
+
+function copyClean() {
+  if (genContent) { navigator.clipboard.writeText(genContent); showToast('// CLEANED TEXT COPIED'); }
+  else { cleanText(); }
+}
+
+function exportReport() {
+  if (!lastResult) { showToast('// RUN SCAN FIRST'); return; }
+  const report = {
+    timestamp: new Date().toISOString(),
+    tool: 'UniScan v2.0',
+    summary: {
+      totalCharacters: lastResult.total,
+      invisibleCharacters: lastResult.invisCount,
+      suspiciousCharacters: lastResult.suspCount,
+      uniqueCodePoints: lastResult.unique,
+      riskScore: lastResult.riskScore,
+      riskLevel: lastResult.riskScore < 20 ? 'CLEAN' : lastResult.riskScore < 50 ? 'MODERATE' : lastResult.riskScore < 75 ? 'HIGH' : 'CRITICAL',
+    },
+    detectedCharacters: lastResult.found.map(f => ({
+      codePoint: f.info.code,
+      name: f.info.name,
+      category: f.info.cat,
+      riskLevel: f.info.risk,
+      occurrences: f.count,
+      block: f.info.block,
+      commonUse: f.info.use,
+    })),
+    unicodeBlocks: lastResult.blocks.map(([n,c]) => ({ block:n, count:c })),
+    securityFlags: lastResult.flags.map(f => ({ severity:f.level, title:f.title, description:f.body })),
+    categoryBreakdown: lastResult.cats,
+    inputText: document.getElementById('main-input').value.slice(0,500) + (document.getElementById('main-input').value.length > 500 ? '...[truncated]' : ''),
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `uniscan-report-${Date.now()}.json`;
+  a.click();
+  showToast('// REPORT EXPORTED AS JSON');
+}
+
+function clearAll() {
+  document.getElementById('main-input').value = '';
+  document.getElementById('char-count-lbl').textContent = '0 chars';
+  document.getElementById('charmap').innerHTML = '<div class="empty-msg">// AWAITING INPUT — PASTE TEXT ABOVE</div>';
+  document.getElementById('charmap').classList.add('empty-state');
+  document.getElementById('charmap-badge').textContent = '0 chars';
+  document.getElementById('found-table-wrap').classList.remove('visible');
+  document.getElementById('no-found-msg').style.display = 'block';
+  document.getElementById('no-found-msg').textContent = '// NO SPECIAL CHARACTERS DETECTED — INPUT IS CLEAN';
+  document.getElementById('clean-output-wrap').classList.remove('visible');
+  document.getElementById('found-badge').textContent = 'NONE';
+  document.getElementById('found-badge').className = 'panel-badge badge-green';
+  document.getElementById('flags-badge').textContent = 'NONE';
+  document.getElementById('flags-badge').className = 'panel-badge badge-green';
+  document.getElementById('flags-list').innerHTML = '<div class="no-flags">// NO THREATS DETECTED</div>';
+  document.getElementById('block-list').innerHTML = '<div style="font-size:0.65rem;color:var(--text3);text-align:center;padding:16px;letter-spacing:0.06em;">// RUN SCAN TO SEE BLOCKS</div>';
+  document.getElementById('cat-legend').innerHTML = '<div style="font-size:0.65rem;color:var(--text3);text-align:center;padding:16px;letter-spacing:0.06em;">// AWAITING SCAN</div>';
+  ['st-total','st-invisible','st-suspicious','st-types'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('risk-fill').style.width = '0%';
+  document.getElementById('risk-score').textContent = '0 / 100';
+  document.getElementById('risk-level').textContent = 'CLEAN';
+  ['ds-total','ds-visible','ds-invis','ds-ws','ds-ctrl','ds-susp','ds-unique','ds-blocks','ds-avg','ds-max'].forEach(id => document.getElementById(id).textContent = '—');
+  lastResult = null;
+  genContent = '';
+}
+
+// ── REFERENCE TABLE ──────────────────────────────────────────────────────
+function buildRefTable() {
+  const tbody = document.getElementById('ref-tbody');
+  const riskClass = {high:'rp-high',med:'rp-med',low:'rp-low'};
+  const catColors = { invisible:'color:var(--blue);background:var(--sky-dim)', bidi:'color:var(--red);background:var(--red-dim)', whitespace:'color:var(--green);background:var(--green-dim)', suspicious:'color:var(--red);background:var(--red-dim)', control:'color:var(--amber);background:var(--amber-dim)' };
+
+  UNICODE_DB.forEach((d,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="ft-code">${d.code}</td>
+      <td class="ft-name">${d.name}</td>
+      <td style="font-size:0.7rem;color:var(--text2);">${d.block}</td>
+      <td><span style="${catColors[d.cat]||''};padding:2px 6px;border-radius:3px;font-size:0.6rem;font-weight:700;">${d.cat.toUpperCase()}</span></td>
+      <td><span class="risk-pill ${riskClass[d.risk]}">${d.risk.toUpperCase()}</span></td>
+      <td style="font-size:0.7rem;color:var(--text3);">${d.use}</td>
+      <td class="ft-action"><button data-i="${i}">COPY</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('button[data-i]').forEach(btn => {
+    btn.onclick = () => { const d = UNICODE_DB[+btn.dataset.i]; doCopy(d.char, d.name); };
+  });
+}
+buildRefTable();
+
+// ── UTILS ────────────────────────────────────────────────────────────────
+function escapeChar(ch) { return ch.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function doCopy(char, name) {
+  navigator.clipboard.writeText(char).then(() => showToast(`// COPIED: ${name}`));
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>
